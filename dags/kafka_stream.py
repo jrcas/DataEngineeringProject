@@ -1,19 +1,17 @@
+import json
 from datetime import datetime
 
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from kafka import KafkaProducer
 
 default_args = {"owner": "airscholar", "start_date": datetime(2024, 10, 1, 00, 00)}
 
 
 def get_data():
-    import requests
-
-    # import json
-
     res = requests.get("https://randomuser.me/api/")
     res = res.json()
-    # print(json.dumps(res, indent=3))
     res = res["results"][0]
     return res
 
@@ -40,11 +38,12 @@ def format_data(res):
 
 
 def stream_data():
-    import json
-
     res = get_data()
     res = format_data(res)
-    print(json.dumps(res, indent=3))
+    # print(json.dumps(res, indent=3))
+
+    producer = KafkaProducer(bootstrap_servers=["broker:29092"], max_block_ms=5000)
+    producer.send("users_created", json.dumps(res).encode("utf-8"))
 
 
 with DAG(
@@ -57,5 +56,3 @@ with DAG(
     streaming_task = PythonOperator(
         task_id="stream_data_from_api", python_callable=stream_data
     )
-
-stream_data()
